@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>究極メダルゲーム</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #0a0e27, #1a1f3a);
+            color: white;
+            user-select: none;
+        }
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+        
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        .pointer-events-auto {
+            pointer-events: auto;
+        }
+
+        #coin-display {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: linear-gradient(135deg, rgba(255,215,0,0.9), rgba(255,165,0,0.9));
+            padding: 15px 25px;
+            border-radius: 15px;
+            border: 3px solid #ffd700;
+            font-size: 24px;
+            font-weight: bold;
+            box-shadow: 0 4px 15px rgba(255,215,0,0.4);
+            z-index: 20;
+        }
+
+        #total-won-display {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(135deg, rgba(0,255,136,0.9), rgba(0,200,100,0.9));
+            padding: 10px 20px;
+            border-radius: 15px;
+            border: 2px solid #00ff88;
+            font-size: 18px;
+            font-weight: bold;
+            box-shadow: 0 4px 15px rgba(0,255,136,0.4);
+            z-index: 20;
+        }
+
+        /* ゲームモード切替ボタン */
+        .mode-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            padding: 10px 20px;
+            font-size: 16px;
+            background: linear-gradient(135deg, #ff0064, #ff6b6b);
+            color: white;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(255,0,100,0.5);
+            font-weight: bold;
+            z-index: 20;
+            transition: transform 0.2s;
+        }
+        .mode-btn:hover { transform: scale(1.05); }
+        #btn-slot { right: 180px; background: linear-gradient(135deg, #9b59b6, #8e44ad); }
+        #btn-pusher { right: 340px; background: linear-gradient(135deg, #3498db, #2980b9); }
+        #btn-drop { right: 500px; background: linear-gradient(135deg, #00ccff, #0099cc); }
+
+        #message {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 48px;
+            font-weight: bold;
+            text-shadow: 3px 3px 6px rgba(0,0,0,0.8);
+            text-align: center;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.5s;
+            z-index: 100;
+        }
+        #message.show { opacity: 1; }
+
+        /* プッシャー用UI */
+        #pusher-ui {
+            display: none;
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 20;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+            width: 300px;
+        }
+        .place-btn {
+            padding: 10px 15px;
+            font-size: 16px;
+            background: linear-gradient(135deg, #f1c40f, #f39c12);
+            color: #333;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            font-weight: bold;
+            box-shadow: 0 4px 0 #d35400;
+            margin: 2px;
+        }
+        .place-btn:active { transform: translateY(4px); box-shadow: none; }
+        #all-in-btn {
+            background: linear-gradient(135deg, #e74c3c, #c0392b);
+            color: white;
+            box-shadow: 0 4px 0 #962d22;
+        }
+
+        /* スロットUI */
+        #slot-ui {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 700px;
+            height: auto;
+            max-height: 90vh;
+            background: rgba(0, 0, 0, 0.85);
+            border: 5px solid #ffd700;
+            border-radius: 20px;
+            padding: 20px;
+            box-sizing: border-box;
+            text-align: center;
+            overflow-y: auto;
+            z-index: 30;
+        }
+        .slot-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-bottom: 20px;
+            margin-top: 10px;
+            justify-items: center;
+        }
+        .reel {
+            width: 120px;
+            height: 120px;
+            background: white;
+            border: 3px solid #333;
+            border-radius: 8px;
+            font-size: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
+        }
+        .slot-controls {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .slot-btn {
+            padding: 10px 20px;
+            font-size: 16px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        #lever-btn {
+            background: linear-gradient(to bottom, #ff4d4d, #cc0000);
+            color: white;
+            height: 60px;
+            width: 60px;
+            border-radius: 50%;
+            box-shadow: 0 4px 0 #990000;
+        }
+        .stop-btn {
+            background: #4ecdc4;
+            color: white;
+            box-shadow: 0 3px 0 #2a9d96;
+        }
+        .stop-btn:disabled { background: #666; box-shadow: none; cursor: not-allowed; }
+        #max-bet-btn {
+            background: linear-gradient(135deg, #ffd700, #ffaa00);
+            color: #333;
+            box-shadow: 0 3px 0 #cc8800;
+        }
+        .key-hint {
+            font-size: 12px;
+            color: #aaa;
+            margin-top: 5px;
+        }
+
+        /* ブリザードラッシュUI */
+        #drop-start-btn {
+            display: none;
+            position: absolute;
+            bottom: 50px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 20px 40px;
+            font-size: 28px;
+            background: linear-gradient(135deg, #ff6b6b, #ee5a6f);
+            color: white;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 0 5px 20px rgba(255,107,107,0.5);
+            z-index: 20;
+            font-weight: bold;
+        }
+        #blizzard-indicator {
+            position: absolute;
+            top: 100px;
+            right: 20px;
+            background: linear-gradient(135deg, rgba(0,100,255,0.8), rgba(0,200,255,0.8));
+            padding: 10px 20px;
+            border-radius: 10px;
+            display: none;
+            animation: pulse 1s infinite;
+            z-index: 20;
+        }
+        @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+
+        #delete-data-btn {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            padding: 10px 20px;
+            background: rgba(255, 0, 0, 0.6);
+            color: white;
+            border: 2px solid red;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="canvas-container"></div>
+
+    <div id="ui-layer">
+        <div id="coin-display" class="pointer-events-auto">💰 所持: <span id="coin-count">100</span></div>
+        <div id="total-won-display" class="pointer-events-auto">🏆 本日獲得: <span id="total-won">0</span></div>
+        
+        <button id="btn-pusher" class="mode-btn pointer-events-auto" onclick="switchMode('pusher')">🎰 プッシャー</button>
+        <button id="btn-slot" class="mode-btn pointer-events-auto" onclick="switchMode('slot')">🎲 スロット</button>
+        <button id="btn-drop" class="mode-btn pointer-events-auto" onclick="switchMode('drop')">❄️ ブリザゲー</button>
+        
+        <div id="blizzard-indicator">❄️ ブリザードラッシュ中<br><small>全プレイ無料！</small></div>
+        
+        <div id="message"></div>
+
+        <!-- プッシャーUI -->
+        <div id="pusher-ui" class="pointer-events-auto">
+            <button class="place-btn" onclick="placeCoins(1)">1枚</button>
+            <button class="place-btn" onclick="placeCoins(5)">5枚</button>
+            <button class="place-btn" onclick="placeCoins(10)">10枚</button>
+            <button class="place-btn" onclick="placeCoins(20)">20枚</button>
+            <button class="place-btn" id="all-in-btn" onclick="placeAllCoins()">全出し</button>
+        </div>
+
+        <!-- ブリザードラッシュUI -->
+        <button id="drop-start-btn" class="pointer-events-auto">⚡ ボール発射！（80メダル）</button>
+
+        <!-- スロットUI -->
+        <div id="slot-ui" class="pointer-events-auto">
+            <h2 style="color: #ffd700; margin-top: 0;">LUCKY 9-MASU SLOT</h2>
+            <div class="bet-info" style="color:#ffd700; font-size:20px;">BET: <span id="slot-bet">5</span> メダル</div>
+            
+            <div class="slot-grid" id="slot-grid"></div>
+
+            <div class="slot-controls">
+                <button id="lever-btn" class="slot-btn">LEVER</button>
+                <button id="stop1" class="slot-btn stop-btn" disabled>STOP 左 (A)</button>
+                <button id="stop2" class="slot-btn stop-btn" disabled>STOP 中 (S)</button>
+                <button id="stop3" class="slot-btn stop-btn" disabled>STOP 右 (D)</button>
+                <button id="max-bet-btn" class="slot-btn">MAX BET (10)</button>
+            </div>
+            <div class="key-hint">スペース:スタート | A/S/D:ストップ</div>
+            <div style="margin-top: 10px; font-size: 12px; color: #aaa;">
+                🍇=50 | 🐅/🦏=再プレイ | 🐘=2回無料 | 🍄=30 | 🌲=20 | 7️⃣=150 | 🔟=300 | 💯=10000 | ❓=最大350
+            </div>
+        </div>
+
+        <button id="delete-data-btn" class="pointer-events-auto">🗑️ データ削除</button>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // ================= 共有ゲーム状態 =================
+        const gameState = {
+            coins: 100,
+            totalWonToday: 0,
+            mode: 'pusher', 
+            
+            drop: {
+                isBlizzardRush: false,
+                isUpgradeStage: false,
+                ballDropping: false,
+                currentStage: 'normal',
+                dropStartTime: 0,
+                swayAngle: 0,
+                swayAmplitude: 6.5,
+                swaySpeed: 0.04,
+                swayPhase: 0,
+                zoneOffset: 0
+            },
+
+            slot: {
+                hasPlayedFree: false,
+                reels: [],
+                spinning: [false, false, false],
+                stopped: [true, true, true],
+                bet: 5,
+                isMaxBet: false,
+                leverPulled: false,
+                freePlays: 0
+            }
+        };
+
+        const SAVE_KEY = 'ultimate_medal_game_fixed_reciprocating';
+        const SYMBOLS = ['🌲', '🍇', '🐅', '🦏', '🐘', '7️⃣', '🍄', '🔟', '💯', '❓'];
+        
+        const WEIGHTS_NORMAL = { 
+            '🌲': 30, '🍇': 30, '🍄': 25,
+            '🐅': 15, '🦏': 15, '🐘': 10, 
+            '7️⃣': 5, '🔟': 2, '💯': 1, '❓': 2
+        };
+        const WEIGHTS_MAX = { 
+            '🌲': 30, '🍇': 30, '🍄': 25,
+            '🐅': 18, '🦏': 18, '🐘': 12, 
+            '7️⃣': 8, '🔟': 4, '💯': 2, '❓': 3
+        };
+
+        // ================= Three.js =================
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0a0e27);
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+        scene.add(ambientLight);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(0, 20, 0);
+        dirLight.castShadow = true;
+        scene.add(dirLight);
+
+        const pusherGroup = new THREE.Group();
+        const dropGroup = new THREE.Group();
+        scene.add(pusherGroup);
+        scene.add(dropGroup);
+
+        // --- プッシャー ---
+        const field = new THREE.Mesh(new THREE.BoxGeometry(14, 1, 20), new THREE.MeshPhongMaterial({ color: 0x2c3e50 }));
+        field.position.y = -0.5; field.receiveShadow = true; pusherGroup.add(field);
+        const wallMat = new THREE.MeshPhongMaterial({ color: 0x34495e });
+        pusherGroup.add(new THREE.Mesh(new THREE.BoxGeometry(1, 2, 20), wallMat).translateX(-7.5));
+        pusherGroup.add(new THREE.Mesh(new THREE.BoxGeometry(1, 2, 20), wallMat).translateX(7.5));
+        pusherGroup.add(new THREE.Mesh(new THREE.BoxGeometry(16, 2, 1), wallMat).translateZ(-9.5));
+        const winZone = new THREE.Mesh(new THREE.BoxGeometry(14, 0.1, 2), new THREE.MeshPhongMaterial({ color: 0x00ff00, emissive: 0x004400 }));
+        winZone.position.set(0, 0.05, 9); pusherGroup.add(winZone);
+        const pusherBar = new THREE.Mesh(new THREE.BoxGeometry(13, 1.5, 2), new THREE.MeshPhongMaterial({ color: 0xe74c3c }));
+        pusherBar.position.set(0, 0.75, -8); pusherBar.castShadow = true; pusherGroup.add(pusherBar);
+
+        const coins = [];
+        // ★★★ メダルの色を黒く変更 ★★★
+        const coinMat = new THREE.MeshPhongMaterial({ color: 0x111111, metalness: 0.5, shininess: 50, side: THREE.DoubleSide });
+        const coinGeo = new THREE.CircleGeometry(0.4, 16);
+        
+        function createCoin(x, z, isStatic = false) {
+            const mesh = new THREE.Mesh(coinGeo, coinMat);
+            mesh.position.set(x, 0.05, z);
+            mesh.rotation.x = -Math.PI / 2; 
+            mesh.castShadow = true;
+            mesh.userData = { velocity: new THREE.Vector3(0, 0, 0), isStatic: isStatic, lockRotation: true };
+            scene.add(mesh);
+            coins.push(mesh);
+        }
+        
+        for(let i=0; i<120; i++) {
+            const x = (Math.random()-0.5)*12;
+            const z = (Math.random()-0.5)*16;
+            createCoin(x, z, true);
+        }
+
+        // --- ブリザードラッシュ ---
+        dropGroup.add(new THREE.Mesh(new THREE.BoxGeometry(20, 14, 1), new THREE.MeshPhongMaterial({ color: 0xc0c0c0, metalness: 0.8 })).translateZ(-2));
+        const dropBall = new THREE.Mesh(new THREE.SphereGeometry(0.5, 32, 32), new THREE.MeshPhongMaterial({ color: 0xffd700 }));
+        dropBall.position.set(0, 8, 0); dropGroup.add(dropBall);
+        
+        const zoneGroup = new THREE.Group();
+        dropGroup.add(zoneGroup);
+        
+        const dropSlots = [];
+        const slotWidth = 2.8; 
+        const slotPositions = [-8.4, -5.6, -2.8, 0, 2.8, 5.6, 8.4];
+        const colorMap = { '2倍': 0x00ff88, '3倍': 0x00ccff, '4倍': 0xffaa00, '5倍': 0xff6b6b, '6倍': 0xff0064, 'アップ': 0xff00ff, 'ブリザ': 0xff6b6b, '？': 0xffff00 };
+
+        function createDropSlots(mode) {
+            while(zoneGroup.children.length > 0){ 
+                zoneGroup.remove(zoneGroup.children[0]); 
+            }
+            dropSlots.length = 0;
+            
+            let labels;
+            if (mode === 'upgrade') {
+                labels = ['3倍', '4倍', '5倍', '6倍', '6倍', 'ブリザ', 'ブリザ'];
+            } else {
+                labels = ['2倍', '3倍', '4倍', '5倍', '6倍', 'アップ', 'ブリザ'];
+            }
+            
+            labels.sort(() => Math.random() - 0.5);
+            
+            labels.forEach((label, i) => {
+                if(i >= slotPositions.length) return;
+                const x = slotPositions[i];
+                const color = colorMap[label] || 0xffffff;
+                
+                const left = new THREE.Mesh(new THREE.BoxGeometry(0.1, 4, 2), new THREE.MeshPhongMaterial({ color: 0x666666 }));
+                left.position.set(x - slotWidth/2, -1, 0); dropGroup.add(left);
+                const right = new THREE.Mesh(new THREE.BoxGeometry(0.1, 4, 2), new THREE.MeshPhongMaterial({ color: 0x666666 }));
+                right.position.set(x + slotWidth/2, -1, 0); dropGroup.add(right);
+                
+                const bottom = new THREE.Mesh(new THREE.BoxGeometry(slotWidth - 0.1, 0.4, 1.8), new THREE.MeshPhongMaterial({ color: color, emissive: color, emissiveIntensity: 0.3 }));
+                bottom.position.set(x, -3, 0); 
+                zoneGroup.add(bottom);
+                
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                canvas.width = 256; canvas.height = 256;
+                ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(0,0,256,256);
+                ctx.fillStyle = '#fff'; ctx.font = 'bold 60px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText(label, 128, 128);
+                const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas) }));
+                sprite.scale.set(2, 2, 1); sprite.position.set(x, -2, 1); 
+                zoneGroup.add(sprite);
+                
+                dropSlots.push({ x, label, mesh: bottom });
+            });
+        }
+        createDropSlots('normal');
+
+        // --- スロット ---
+        const slotGrid = document.getElementById('slot-grid');
+        const reelEls = [];
+        for (let i = 0; i < 9; i++) {
+            const reel = document.createElement('div');
+            reel.className = 'reel'; reel.textContent = '❓';
+            slotGrid.appendChild(reel); reelEls.push(reel);
+        }
+
+        function switchMode(mode) {
+            gameState.mode = mode;
+            const isBlizzard = gameState.drop.isBlizzardRush;
+            
+            pusherGroup.visible = (mode === 'pusher' && !isBlizzard);
+            dropGroup.visible = (mode === 'drop');
+            
+            document.getElementById('pusher-ui').style.display = (mode === 'pusher' && !isBlizzard) ? 'flex' : 'none';
+            document.getElementById('drop-start-btn').style.display = (mode === 'drop') ? 'block' : 'none';
+            document.getElementById('slot-ui').style.display = (mode === 'slot') ? 'block' : 'none';
+
+            if (mode === 'pusher') {
+                camera.position.set(0, 25, 0); camera.lookAt(0, 0, 0); camera.rotation.z = 0;
+            } else if (mode === 'drop') {
+                camera.position.set(0, 2, 22); camera.lookAt(0, 0, 0);
+            } else {
+                camera.position.set(0, 2, 22); camera.lookAt(0, 0, 0);
+            }
+            updateUI();
+        }
+
+        function placeCoins(amount) {
+            if(gameState.coins >= amount) {
+                gameState.coins -= amount;
+                for(let i=0; i<amount; i++) setTimeout(() => createCoin((Math.random()-0.5)*10, -8, false), i * 50);
+                saveGame();
+                updateUI();
+            } else showMessage("メダル不足！");
+        }
+
+        function placeAllCoins() {
+            if(gameState.coins <= 0) { showMessage("メダルがありません！"); return; }
+            const amount = gameState.coins;
+            gameState.coins = 0;
+            showMessage(`${amount}枚投入！`);
+            for(let i=0; i<amount; i++) {
+                setTimeout(() => createCoin((Math.random()-0.5)*10, -8, false), i * 5);
+            }
+            saveGame();
+            updateUI();
+        }
+
+        function addWonCoins(amount) {
+            if(amount <= 0) return;
+            gameState.coins += amount;
+            gameState.totalWonToday += amount;
+            document.getElementById('total-won').textContent = gameState.totalWonToday;
+            saveGame();
+            updateUI();
+        }
+
+        function showMessage(text) {
+            const el = document.getElementById('message');
+            el.innerHTML = text.replace(/\n/g, '<br>');
+            el.classList.add('show');
+            setTimeout(() => el.classList.remove('show'), 3000);
+        }
+
+        function updateUI() {
+            document.getElementById('coin-count').textContent = Math.floor(gameState.coins);
+            
+            if(gameState.mode === 'drop') {
+                const btn = document.getElementById('drop-start-btn');
+                if(gameState.drop.isBlizzardRush) {
+                    btn.textContent = "❄️ ブリザードラッシュ（無料）";
+                    btn.style.background = "#00ccff";
+                } else {
+                    btn.textContent = "⚡ ボール発射（80枚）";
+                    btn.style.background = "#ff6b6b";
+                }
+            }
+        }
+
+        // --- キーボード操作 ---
+        const keys = {};
+        document.addEventListener('keydown', (e) => {
+            keys[e.code] = true;
+            if (gameState.mode === 'slot') {
+                if (e.code === 'Space') {
+                    e.preventDefault();
+                    document.getElementById('lever-btn').click();
+                }
+                if (e.key.toLowerCase() === 'a') document.getElementById('stop1').click();
+                if (e.key.toLowerCase() === 's') document.getElementById('stop2').click();
+                if (e.key.toLowerCase() === 'd') document.getElementById('stop3').click();
+            } else if (gameState.mode === 'drop') {
+                if (e.code === 'Enter') {
+                    e.preventDefault();
+                    document.getElementById('drop-start-btn').click();
+                }
+            }
+        });
+        document.addEventListener('keyup', (e) => { keys[e.code] = false; });
+
+        // --- スロット ---
+        document.getElementById('lever-btn').addEventListener('click', () => {
+            if(gameState.slot.leverPulled) return;
+            const cost = gameState.slot.bet;
+            
+            if(gameState.slot.freePlays > 0) {
+                gameState.slot.freePlays--;
+                showMessage(`無料プレイ！ (残り: ${gameState.slot.freePlays}回)`);
+            } else if (!gameState.slot.hasPlayedFree) {
+                gameState.slot.hasPlayedFree = true;
+                showMessage('🎁 初回無料プレイ！');
+            } else {
+                if(gameState.coins < cost) { showMessage("メダル不足"); return; }
+                gameState.coins -= cost;
+            }
+            
+            gameState.slot.leverPulled = true;
+            gameState.slot.spinning = [true, true, true];
+            gameState.slot.stopped = [false, false, false];
+            document.querySelectorAll('.stop-btn').forEach(b => b.disabled = false);
+            saveGame();
+            updateUI();
+            
+            const intervals = [];
+            for(let i=0; i<9; i++) {
+                intervals.push(setInterval(() => {
+                    if(gameState.slot.spinning[Math.floor(i/3)]) reelEls[i].textContent = SYMBOLS[Math.floor(Math.random()*SYMBOLS.length)];
+                }, 50));
+            }
+            gameState.slot.intervals = intervals;
+        });
+
+        [0, 1, 2].forEach(i => {
+            document.getElementById(`stop${i+1}`).addEventListener('click', () => {
+                if(!gameState.slot.spinning[i]) return;
+                gameState.slot.spinning[i] = false;
+                gameState.slot.stopped[i] = true;
+                document.getElementById(`stop${i+1}`).disabled = true;
+                clearInterval(gameState.slot.intervals[i*3]); 
+
+                for(let j=0; j<3; j++) {
+                    const idx = i*3+j;
+                    let forceWinSymbol = null;
+                    
+                    const isLastChance = (gameState.slot.freePlays === 0 && gameState.slot.reels.some(r => r !== undefined));
+                    const bonusRate = isLastChance ? 0.85 : 0.45;
+
+                    if (i === 0 && j === 0 && Math.random() < bonusRate) {
+                        const winSymbols = ['🍇', '🐅', '🦏', '🐘', '🍄', '🌲', '7️⃣', '🔟', '💯', '❓'];
+                        forceWinSymbol = winSymbols[Math.floor(Math.random() * winSymbols.length)];
+                    }
+
+                    if (forceWinSymbol) {
+                        gameState.slot.reels[idx] = forceWinSymbol;
+                        reelEls[idx].textContent = forceWinSymbol;
+                    } else {
+                        const weights = gameState.slot.isMaxBet ? WEIGHTS_MAX : WEIGHTS_NORMAL;
+                        let total = Object.values(weights).reduce((a,b)=>a+b,0);
+                        let r = Math.random()*total;
+                        let sym = '🌲';
+                        for(let [s, w] of Object.entries(weights)) { if(r<w){sym=s; break;} r-=w; }
+                        gameState.slot.reels[idx] = sym;
+                        reelEls[idx].textContent = sym;
+                    }
+                }
+                if(gameState.slot.stopped.every(s=>s)) checkSlotWin();
+            });
+        });
+
+        document.getElementById('max-bet-btn').addEventListener('click', () => {
+            gameState.slot.isMaxBet = !gameState.slot.isMaxBet;
+            gameState.slot.bet = gameState.slot.isMaxBet ? 10 : 5;
+            document.getElementById('slot-bet').textContent = gameState.slot.bet;
+            document.getElementById('max-bet-btn').textContent = gameState.slot.isMaxBet ? "NORMAL (5)" : "MAX BET (10)";
+        });
+
+        function checkSlotWin() {
+            const r = gameState.slot.reels;
+            let win = 0;
+            const lines = [[0,1,2],[3,4,5],[6,7,8],[0,4,8],[2,4,6]];
+            
+            lines.forEach(l => {
+                if(r[l[0]] === r[l[1]] && r[l[1]] === r[l[2]]) {
+                    const s = r[l[0]];
+                    if(s==='🍇') win+=50;
+                    if(s==='🐅'||s==='🦏') gameState.slot.freePlays++;
+                    if(s==='🐘') gameState.slot.freePlays+=2;
+                    if(s==='🍄') win+=30;
+                    if(s==='🌲') win+=20;
+                    if(s==='7️⃣') win+=150;
+                    if(s==='🔟') win+=300;
+                    if(s==='💯') win+=10000;
+                    if(s==='❓') {
+                        win += Math.floor(Math.random() * 320) + 30;
+                        showMessage(`？＝${win}倍 ＋${win}枚`);
+                    }
+                }
+            });
+            
+            if(win > 0 && r[0] !== '❓') {
+                addWonCoins(win);
+                showMessage(`${win}枚獲得！`);
+            } else if (r[0] === '❓' && win > 0) {
+                 addWonCoins(win);
+            }
+            
+            if(gameState.slot.freePlays > 0) showMessage(`無料プレイ ${gameState.slot.freePlays}回`);
+            
+            gameState.slot.leverPulled = false;
+            saveGame();
+            updateUI();
+        }
+
+        // --- ブリザードラッシュ ---
+        document.getElementById('drop-start-btn').addEventListener('click', () => {
+            if(gameState.drop.ballDropping) return;
+            
+            if(!gameState.drop.isBlizzardRush) {
+                if(gameState.coins < 80) { showMessage("メダル不足！(80枚必要)"); return; }
+                gameState.coins -= 80;
+            }
+            
+            gameState.drop.ballDropping = true;
+            gameState.drop.dropStartTime = Date.now();
+            gameState.drop.swayAmplitude = 6.5 + Math.random()*2; 
+            gameState.drop.swaySpeed = 0.03 + Math.random()*0.05;
+            saveGame();
+            updateUI();
+        });
+
+        function handleDropResult(slot) {
+            let mult = 0;
+            if(slot.label === 'ブリザ') {
+                gameState.drop.isBlizzardRush = true;
+                gameState.drop.isUpgradeStage = false;
+                showMessage("🌟 ブリザードラッシュ突入！全プレイ無料！");
+                document.getElementById('blizzard-indicator').style.display = 'block';
+                addWonCoins(500);
+            } else if (slot.label === 'アップ') {
+                gameState.drop.isUpgradeStage = true;
+                createDropSlots('upgrade');
+                showMessage("アップ！高倍率狙い！");
+            } else if (slot.label.includes('倍')) {
+                mult = parseInt(slot.label);
+            }
+            
+            if(mult > 0) {
+                addWonCoins(mult * 10);
+                showMessage(`${mult}倍！ +${mult*10}枚`);
+            }
+            
+            if (gameState.drop.isUpgradeStage && slot.label !== 'ブリザ') {
+                setTimeout(() => {
+                    gameState.drop.isUpgradeStage = false;
+                    createDropSlots('normal');
+                }, 1000);
+            }
+            
+            saveGame();
+            updateUI();
+        }
+
+        function saveGame() {
+            localStorage.setItem(SAVE_KEY, JSON.stringify({
+                coins: gameState.coins,
+                totalWonToday: gameState.totalWonToday,
+                drop: { isBlizzardRush: gameState.drop.isBlizzardRush, isUpgradeStage: gameState.drop.isUpgradeStage },
+                slot: { hasPlayedFree: gameState.slot.hasPlayedFree, freePlays: gameState.slot.freePlays }
+            }));
+        }
+        function loadGame() {
+            const d = JSON.parse(localStorage.getItem(SAVE_KEY));
+            if(d) {
+                gameState.coins = d.coins || 100;
+                gameState.totalWonToday = d.totalWonToday || 0;
+                document.getElementById('total-won').textContent = gameState.totalWonToday;
+                if(d.drop) {
+                    gameState.drop.isBlizzardRush = d.drop.isBlizzardRush;
+                    gameState.drop.isUpgradeStage = d.drop.isUpgradeStage;
+                    if(gameState.drop.isBlizzardRush) {
+                        document.getElementById('blizzard-indicator').style.display = 'block';
+                    }
+                }
+                if(d.slot) {
+                    gameState.slot.hasPlayedFree = d.slot.hasPlayedFree;
+                    gameState.slot.freePlays = d.slot.freePlays || 0;
+                }
+            }
+            updateUI();
+        }
+
+        document.getElementById('delete-data-btn').addEventListener('click', () => {
+            if(confirm("本当に削除しますか？")) {
+                localStorage.removeItem(SAVE_KEY);
+                location.reload();
+            }
+        });
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            if(gameState.mode === 'pusher') {
+                // ★★★ プッシャーの往復動作を確実に実行 ★★★
+                let pusherZ = pusherBar.position.z;
+                
+                // 現在の方向に基づいて移動
+                if (pusherBar.userData.direction === undefined) pusherBar.userData.direction = 1; // 初期方向: 前進
+                
+                pusherZ += 0.08 * pusherBar.userData.direction;
+                
+                // 手前（半分）に到達したら折り返し
+                if (pusherZ >= 0) {
+                    pusherZ = 0;
+                    pusherBar.userData.direction = -1; // 奥へ戻る
+                } 
+                // 奥に到達したら折り返し
+                else if (pusherZ <= -9) {
+                    pusherZ = -9;
+                    pusherBar.userData.direction = 1; // 手前へ進む
+                }
+                
+                pusherBar.position.z = pusherZ;
+
+                for(let i=coins.length-1; i>=0; i--) {
+                    const c = coins[i];
+                    
+                    const pusherFront = pusherZ + 1.0;
+                    if(c.position.z - 0.4 < pusherFront && c.position.z > pusherZ - 1) {
+                         c.userData.velocity.z += 0.08;
+                    }
+                    
+                    for(let j=i-1; j>=0; j--) {
+                        const other = coins[j];
+                        const dx = c.position.x - other.position.x;
+                        const dz = c.position.z - other.position.z;
+                        const dist = Math.sqrt(dx*dx + dz*dz);
+                        if(dist < 0.85) { 
+                            const angle = Math.atan2(dz, dx);
+                            const force = 0.05;
+                            c.userData.velocity.x += Math.cos(angle) * force;
+                            c.userData.velocity.z += Math.sin(angle) * force;
+                            other.userData.velocity.x -= Math.cos(angle) * force;
+                            other.userData.velocity.z -= Math.sin(angle) * force;
+                        }
+                    }
+                    
+                    c.userData.velocity.multiplyScalar(0.90);
+                    c.position.add(c.userData.velocity);
+                    
+                    if(c.position.z > 9) {
+                        scene.remove(c); coins.splice(i, 1); addWonCoins(1);
+                    }
+                    
+                    if(c.position.x > 6.5) { c.position.x = 6.5; c.userData.velocity.x *= -0.5; }
+                    if(c.position.x < -6.5) { c.position.x = -6.5; c.userData.velocity.x *= -0.5; }
+                    if(c.position.z < -9.5) { c.position.z = -9.5; c.userData.velocity.z *= -0.5; }
+                }
+            }
+
+            if(gameState.mode === 'drop' && gameState.drop.ballDropping) {
+                const elapsed = (Date.now() - gameState.drop.dropStartTime)/1000;
+                if(elapsed < 5) {
+                    const sway = Math.sin(gameState.drop.swayAngle + gameState.drop.swayPhase) * gameState.drop.swayAmplitude;
+                    gameState.drop.swayAngle += gameState.drop.swaySpeed;
+                    const y = 8 - (10.5 * elapsed/5);
+                    dropBall.visible = true;
+                    dropBall.position.set(Math.max(-9, Math.min(9, sway)), y, 0);
+                } else {
+                    gameState.drop.ballDropping = false;
+                    dropBall.position.y = -2.5;
+                    
+                    let closest = null; let minDist = Infinity;
+                    dropSlots.forEach(s => {
+                        const dist = Math.abs(dropBall.position.x - s.x);
+                        if(dist < minDist) { minDist = dist; closest = s; }
+                    });
+                    
+                    if(closest) handleDropResult(closest);
+                }
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        loadGame();
+        switchMode('pusher');
+        animate();
+
+    </script>
+</body>
+</html>
